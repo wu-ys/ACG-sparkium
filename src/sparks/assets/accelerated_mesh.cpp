@@ -7,12 +7,22 @@
 
 namespace sparks {
 
-  float InternalNode::FindIntersect(const glm::vec3 &origin,
-                                    const glm::vec3 &direction,
-                                    float t_min,
-                                    HitRecord *hit_record) const {
+  float TreeNode::FindIntersect(const glm::vec3 &origin,
+                                const glm::vec3 &direction,
+                                float t_min,
+                                HitRecord *hit_record) const {
+    if (is_leaf_)
+      return FindIntersect_Leaf(origin, direction, t_min, hit_record);
+    else
+      return FindIntersect_Inner(origin, direction, t_min, hit_record);
+  }
+
+  float TreeNode::FindIntersect_Inner(const glm::vec3 &origin,
+                                      const glm::vec3 &direction,
+                                      float t_min,
+                                      HitRecord *hit_record) const {
     float t_max = FLT_MAX;
-    float res,t1,t2;
+    float t1,t2;
     HitRecord hit_record1, hit_record2;
     if (childL_->GetAABB().IsIntersect(origin, direction, t_min, t_max)) {
       t1 = childL_->FindIntersect(origin, direction, t_min, &hit_record1);
@@ -53,7 +63,7 @@ namespace sparks {
 
   }
 
-  float LeafNode::FindIntersect(const glm::vec3 &origin,
+  float TreeNode::FindIntersect_Leaf(const glm::vec3 &origin,
                                 const glm::vec3 &direction,
                                 float t_min,
                                 HitRecord *hit_record) const {
@@ -116,8 +126,7 @@ namespace sparks {
     for (int i = 0; i < num_faces; i++) {
       faces.insert(i);
     }
-    root_ = std::make_shared<LeafNode>(vertices_, indices_, faces);
-    root_->SetDepth(0);
+    root_ = std::make_shared<TreeNode>(vertices_, indices_, faces, 0);
     BuildAccelerationStructure(level);
   }
 
@@ -131,9 +140,7 @@ namespace sparks {
     for (int i = 0; i < num_faces; i++) {
       faces.insert(i);
     }
-    root_ = std::make_shared<LeafNode>(vertices_, indices_, faces);
-
-    root_->SetDepth(0);
+    root_ = std::make_shared<TreeNode>(vertices_, indices_, faces, 0);
     BuildAccelerationStructure(level);
   }
 
@@ -141,18 +148,19 @@ namespace sparks {
                                   const glm::vec3 &direction, float t_min,
                                   HitRecord *hit_record) const {
     /* supposed to be the accelerated tracing algorithm */
-    return root_->FindIntersect(origin, direction, t_min, hit_record);
+    float t = 0;
+    t = root_->FindIntersect(origin, direction, t_min, hit_record);
+    return t;
   }
 
   void AcceleratedMesh::BuildAccelerationStructure(int level) {
-    std::shared_ptr<InternalNode> cur = root_->SplitNode(0);
 
-    std::queue<std::shared_ptr<InternalNode>> node_queue;
-  
-    if (cur) {
-      root_ = cur;      
-      node_queue.push(cur);
-    }
+    std::queue<std::shared_ptr<TreeNode>> node_queue;
+
+    std::shared_ptr<TreeNode> cur;
+
+    if (root_) 
+      node_queue.push(root_);
 
     while (!node_queue.empty()) {
       cur = node_queue.front();
@@ -167,25 +175,16 @@ namespace sparks {
       if (depth >= level_)
         continue;
 
-      auto newleft = cur->childL_->SplitNode((depth+1) % 3);
-      auto newright = cur->childR_->SplitNode((depth+1) % 3);
-
-      if (newleft) {
-        cur->childL_ = newleft;
-        node_queue.push(newleft);
-      }
-
-      if (newright) {
-        cur->childR_ = newright;
-        node_queue.push(newright);
+      if (cur->SplitNode(depth % 3)) {
+        if (cur->GetLeft())
+          node_queue.push(cur->GetLeft());
+        if (cur->GetRight())
+          node_queue.push(cur->GetRight());
       }
     }
-
-
-
   }
 
-  std::shared_ptr<InternalNode> LeafNode::SplitNode(int dim) {
+  bool TreeNode::SplitNode(int dim) {
     if (faces_.size() <= 10)
       return nullptr;
 
@@ -225,17 +224,15 @@ namespace sparks {
 
     // construct new vertices 
 
-    std::shared_ptr<LeafNode> lnode = std::make_shared<LeafNode>(vertices_, indices_, group1);
-    std::shared_ptr<LeafNode> rnode = std::make_shared<LeafNode>(vertices_, indices_, group2);
-    lnode->SetDepth(this->GetDepth() + 1);
-    rnode->SetDepth(this->GetDepth() + 1);
+    std::shared_ptr<TreeNode> lnode = std::make_shared<TreeNode>(vertices_, indices_, group1, depth_+1);
+    std::shared_ptr<TreeNode> rnode = std::make_shared<TreeNode>(vertices_, indices_, group2, depth_+1);
 
-    std::shared_ptr<InternalNode> inode = std::make_shared<InternalNode>();
-    inode->childL_ = lnode;
-    inode->childR_ = rnode;
-    inode->SetDepth(this->GetDepth() + 1);
+    is_leaf_ = false;
+    childL_ = lnode;
+    childR_ = rnode;
+    // aabb_ = lnode->GetAABB() & rnode->GetAABB();
+    faces_.clear();
 
-    return inode;
   }
 
 }  // namespace sparks

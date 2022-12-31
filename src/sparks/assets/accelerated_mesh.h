@@ -6,89 +6,54 @@
 
 namespace sparks {
 
-class TreeNode;
-class InternalNode;
-class LeafNode;
-
 class TreeNode {
 private:
   AxisAlignedBoundingBox aabb_{};
   bool is_leaf_;
   int depth_;
-
-public:
-
-  AxisAlignedBoundingBox GetAABB() const { return aabb_;}
-  void SetAABB(AxisAlignedBoundingBox aabb) {
-    aabb_ = aabb;
-  }
-  bool IsLeaf() const { return is_leaf_;}
-  void SetLeaf(bool is_leaf) {
-    is_leaf_ = is_leaf;
-  }
-
-  void SetDepth(int depth)  { depth_ = depth;}
-  int GetDepth()  { return depth_;}
-
-  virtual float FindIntersect(const glm::vec3 &origin,
-                              const glm::vec3 &direction,
-                              float t_min,
-                              HitRecord *hit_record) const = 0;
-  TreeNode() {}
-  virtual ~TreeNode() {};
-  virtual std::shared_ptr<InternalNode> SplitNode(int dim) = 0;
-};
-
-class InternalNode : public TreeNode {
- public:
-  std::shared_ptr<TreeNode> childL_;
-  std::shared_ptr<TreeNode> childR_;
- public:
-  virtual float FindIntersect(const glm::vec3 &origin,
-                              const glm::vec3 &direction,
-                              float t_min,
-                              HitRecord *hit_record) const;
-                  
-  InternalNode() = default;
-
-  ~InternalNode() {
-    childL_->~TreeNode();
-    childR_->~TreeNode();
-  }
-
-  void Init() {
-    if (childL_ && childR_)
-    SetAABB(childL_->GetAABB() & childR_->GetAABB());
-    SetLeaf(false);
-  }
-
-  virtual std::shared_ptr<InternalNode> SplitNode(int dim) {
-    return nullptr;
-  }
-};
-
-class LeafNode : public TreeNode {
- private:
   std::set<int32_t> faces_;
   const std::vector<Vertex> &vertices_;
   const std::vector<uint32_t> &indices_;
 
- public:
-  virtual float FindIntersect(const glm::vec3 &origin,
-                              const glm::vec3 &direction,
-                              float t_min,
-                              HitRecord *hit_record) const;
+protected:
+  std::shared_ptr<TreeNode> childL_;
+  std::shared_ptr<TreeNode> childR_;
 
-  LeafNode(const std::vector<Vertex> &vertices,
+public:
+
+  AxisAlignedBoundingBox GetAABB() const { return aabb_;}
+  bool IsLeaf() const { return is_leaf_;}
+  int GetDepth()  { return depth_;}
+
+  std::shared_ptr<TreeNode> GetLeft() const { return childL_;}
+  std::shared_ptr<TreeNode> GetRight() const { return childR_;}
+
+
+  float FindIntersect(const glm::vec3 &origin,
+                      const glm::vec3 &direction,
+                      float t_min,
+                      HitRecord *hit_record) const;
+
+  float FindIntersect_Leaf(const glm::vec3 &origin,
+                           const glm::vec3 &direction,
+                           float t_min,
+                           HitRecord *hit_record) const;
+
+  float FindIntersect_Inner(const glm::vec3 &origin,
+                            const glm::vec3 &direction,
+                            float t_min,
+                            HitRecord *hit_record) const;
+  // initializing with a set of faces: Leaf
+  TreeNode(const std::vector<Vertex> &vertices,
            const std::vector<uint32_t> &indices,
-           std::set<int32_t> faces)
-      : vertices_(vertices), indices_(indices), faces_(faces) {
+           std::set<int32_t> faces, int depth)
+      : vertices_(vertices), indices_(indices), faces_(faces), childL_(nullptr), childR_(nullptr), is_leaf_(true), depth_(depth) {
     float x_min, x_max, y_min, y_max, z_min, z_max;
     x_min = y_min = z_min = FLT_MAX;
     x_max = y_max = z_max = FLT_MIN;
     for (auto face : faces) {
       for (int i = 0; i < 3; i++) {
-        glm::vec3 pos = vertices_[indices_[3*face+i]].position;
+        glm::vec3 pos = vertices_[indices_[3*face + i]].position;
         x_min = std::min(x_min, pos.x);
         x_max = std::max(x_max, pos.x);
         y_min = std::min(y_min, pos.y);
@@ -97,15 +62,24 @@ class LeafNode : public TreeNode {
         z_max = std::max(z_max, pos.z);
       }
     }
-
-    SetAABB(AxisAlignedBoundingBox(x_min, x_max, y_min, y_max, z_min, z_max));
-    SetLeaf(true);
+    aabb_ = AxisAlignedBoundingBox(x_min, x_max, y_min, y_max, z_min, z_max);
   }
 
-  ~LeafNode() {}
+  // initializing with left and right child ptr: Inner
+  TreeNode(const std::vector<Vertex> &vertices,
+           const std::vector<uint32_t> &indices,
+           std::shared_ptr<TreeNode> l,
+           std::shared_ptr<TreeNode> r, int depth)
+      : vertices_(vertices), indices_(indices), childL_(l), childR_(r), is_leaf_(false), depth_(depth) {
+    if (childL_ && childR_)
+      aabb_ = (childL_->GetAABB() & childR_->GetAABB());
+    else 
+      std::cerr << "Uninitialized pointers to childs!";
+  }
 
-  virtual std::shared_ptr<InternalNode> SplitNode(int dim);
+  bool SplitNode(int dim);
 };
+
 
 class AcceleratedMesh : public Mesh {
  public:
@@ -113,7 +87,7 @@ class AcceleratedMesh : public Mesh {
   explicit AcceleratedMesh(const Mesh &mesh, int level=10);
   AcceleratedMesh(const std::vector<Vertex> &vertices,
                   const std::vector<uint32_t> &indices,
-                  int level=10);
+                  int level = 10);
   ~AcceleratedMesh() {
     root_->~TreeNode();
     //delete root_;
@@ -122,7 +96,7 @@ class AcceleratedMesh : public Mesh {
                  const glm::vec3 &direction,
                  float t_min,
                  HitRecord *hit_record) const override;
-  void BuildAccelerationStructure(int level=10);
+  void BuildAccelerationStructure(int level = 10);
 
  private:
   /*

@@ -20,7 +20,7 @@ Scene::Scene() {
                        {{-1.0f, 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
                        {{1.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
                        {{1.0f, 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}}},
-                      {0, 1, 2, 2, 1, 3},2),
+                      {0, 1, 2, 2, 1, 3}),
       Material{}, glm::mat4{1.0f});
   SetCameraToWorld(glm::inverse(glm::lookAt(glm::vec3{2.0f, 1.0f, 3.0f},
                                             glm::vec3{0.0f, 0.0f, 0.0f},
@@ -28,7 +28,7 @@ Scene::Scene() {
 
   Texture texture;
   Texture::Load("../../textures/earth.jpg", texture);
-  AddEntity(AcceleratedMesh(Mesh::Sphere(glm::vec3{0.0f, 0.0f, 0.0f}, 0.5f),2),
+  AddEntity(AcceleratedMesh(Mesh::Sphere(glm::vec3{0.0f, 0.0f, 0.0f}, 0.5f)),
             Material{glm::vec3{1.0f}, AddTexture(texture, "Earth")},
             glm::translate(glm::mat4{1.0f}, glm::vec3{0.0f, 0.5f, 0.0f}));
 }

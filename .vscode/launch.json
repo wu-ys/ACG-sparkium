@@ -8,10 +8,10 @@
             "name": "Launch sparks",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${command:cmake.launchTargetPath}",
+            "program": "D:/wys/classfile/2022-2023-1/Graphics/project/sparkium/out/build/x64-Debug/src/sparks/sparks.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/src/sparks",
+            "cwd": "D:/wys/classfile/2022-2023-1/Graphics/project/sparkium/out/build/x64-Debug/src/sparks/",
             "environment": [],
             "console": "externalTerminal"
         },

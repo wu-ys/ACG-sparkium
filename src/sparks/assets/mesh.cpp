@@ -267,6 +267,10 @@ void Mesh::MergeVertices() {
   std::vector<Vertex> vertices;
   std::vector<uint32_t> indices;
   std::unordered_map<Vertex, uint32_t, VertexHash> vertex_index_map;
+  
+  // index_func: 
+  //    inputs a Vertex, and return its index (uint32_t)
+  //    if the Vertex is not in Mesh.vertices, it will be inserted
   auto index_func = [&vertices, &vertex_index_map](const Vertex &v) {
     if (vertex_index_map.count(v)) {
       return vertex_index_map.at(v);
