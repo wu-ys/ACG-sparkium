@@ -186,7 +186,7 @@ namespace sparks {
 
   bool TreeNode::SplitNode(int dim) {
     if (faces_.size() <= 10)
-      return nullptr;
+      return false;
 
     float min_x = FLT_MAX;
     float max_x = FLT_MIN;
@@ -232,6 +232,8 @@ namespace sparks {
     childR_ = rnode;
     // aabb_ = lnode->GetAABB() & rnode->GetAABB();
     faces_.clear();
+
+    return true;
 
   }
 
