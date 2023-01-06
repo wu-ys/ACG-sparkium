@@ -15,22 +15,24 @@ Scene::Scene() {
   Texture::Load(u8"../../textures/envmap_clouds_4k.hdr", envmap);
   envmap.SetSampleType(SAMPLE_TYPE_LINEAR);
   envmap_id_ = AddTexture(envmap, "Clouds");
-  AddEntity(
-      AcceleratedMesh({{{-1.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-                       {{-1.0f, 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
-                       {{1.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-                       {{1.0f, 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}}},
-                      {0, 1, 2, 2, 1, 3}),
-      Material{}, glm::mat4{1.0f});
+
+  std::shared_ptr<AcceleratedMesh> a1 = std::make_shared<AcceleratedMesh>(
+      Mesh({{{-1.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+       {{-1.0f, 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+       {{1.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+       {{1.0f, 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}}},
+      {0, 1, 2, 2, 1, 3})
+  );
+
+  AddEntity(a1,Material{}, glm::mat4{1.0f});
   SetCameraToWorld(glm::inverse(glm::lookAt(glm::vec3{2.0f, 1.0f, 3.0f},
                                             glm::vec3{0.0f, 0.0f, 0.0f},
                                             glm::vec3{0.0f, 1.0f, 0.0f})));
 
   Texture texture;
   Texture::Load("../../textures/earth.jpg", texture);
-  AddEntity(AcceleratedMesh(Mesh::Sphere(glm::vec3{0.0f, 0.0f, 0.0f}, 0.5f)),
-            Material{glm::vec3{1.0f}, AddTexture(texture, "Earth")},
-            glm::translate(glm::mat4{1.0f}, glm::vec3{0.0f, 0.5f, 0.0f}));
+  std::shared_ptr<AcceleratedMesh> a2 = std::make_shared<AcceleratedMesh>(Mesh::Sphere(glm::vec3{0.0f, 0.0f, 0.0f}, 0.5f));
+  AddEntity(a2, Material{glm::vec3{1.0f}, AddTexture(texture, "Earth")}, glm::translate(glm::mat4{1.0f}, glm::vec3{0.0f, 0.5f, 0.0f}));
 }
 
 int Scene::AddTexture(const Texture &texture, const std::string &name) {
@@ -306,9 +308,9 @@ int Scene::LoadTexture(const std::string &file_path) {
 }
 
 int Scene::LoadObjMesh(const std::string &file_path) {
-  AcceleratedMesh mesh;
+  std::shared_ptr<AcceleratedMesh> mesh = std::make_shared<AcceleratedMesh>();
   if (Mesh::LoadObjFile(file_path, mesh)) {
-    mesh.BuildAccelerationStructure();
+    mesh->BuildAccelerationStructure();
     return AddEntity(mesh, Material{}, glm::mat4{1.0f},
                      PathToFilename(file_path));
   } else {

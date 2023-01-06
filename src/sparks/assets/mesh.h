@@ -23,7 +23,7 @@ class Mesh : public Model {
   static Mesh Cube(const glm::vec3 &center, const glm::vec3 &size);
   static Mesh Sphere(const glm::vec3 &center = glm::vec3{0.0f},
                      float radius = 1.0f);
-  static bool LoadObjFile(const std::string &obj_file_path, Mesh &mesh);
+  static bool LoadObjFile(const std::string &obj_file_path, std::shared_ptr<Mesh> mesh);
   void WriteObjFile(const std::string &file_path) const;
   void MergeVertices();
 

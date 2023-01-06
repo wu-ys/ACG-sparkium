@@ -162,7 +162,7 @@ std::vector<uint32_t> Mesh::GetIndices() const {
   return indices_;
 }
 
-bool Mesh::LoadObjFile(const std::string &obj_file_path, Mesh &mesh) {
+bool Mesh::LoadObjFile(const std::string &obj_file_path, std::shared_ptr<Mesh> mesh) {
   tinyobj::ObjReaderConfig reader_config;
   reader_config.mtl_search_path = "./";  // Path to material files
 
@@ -258,8 +258,8 @@ bool Mesh::LoadObjFile(const std::string &obj_file_path, Mesh &mesh) {
       index_offset += fv;
     }
   }
-  mesh = Mesh(vertices, indices);
-  mesh.MergeVertices();
+  mesh = std::make_shared<Mesh>(vertices, indices);
+  mesh->MergeVertices();
   return true;
 }
 

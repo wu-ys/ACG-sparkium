@@ -88,10 +88,7 @@ class AcceleratedMesh : public Mesh {
   AcceleratedMesh(const std::vector<Vertex> &vertices,
                   const std::vector<uint32_t> &indices,
                   int level = 10);
-  ~AcceleratedMesh() {
-    root_->~TreeNode();
-    //delete root_;
-  }
+
   float TraceRay(const glm::vec3 &origin,
                  const glm::vec3 &direction,
                  float t_min,
