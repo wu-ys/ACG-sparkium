@@ -162,7 +162,7 @@ std::vector<uint32_t> Mesh::GetIndices() const {
   return indices_;
 }
 
-bool Mesh::LoadObjFile(const std::string &obj_file_path, std::shared_ptr<Mesh> mesh) {
+bool Mesh::LoadObjFile(const std::string &obj_file_path) {
   tinyobj::ObjReaderConfig reader_config;
   reader_config.mtl_search_path = "./";  // Path to material files
 
@@ -258,8 +258,9 @@ bool Mesh::LoadObjFile(const std::string &obj_file_path, std::shared_ptr<Mesh> m
       index_offset += fv;
     }
   }
-  mesh = std::make_shared<Mesh>(vertices, indices);
-  mesh->MergeVertices();
+  vertices_ = vertices;
+  indices_ = indices;
+  MergeVertices();
   return true;
 }
 
@@ -314,9 +315,8 @@ Mesh::Mesh(const tinyxml2::XMLElement *element) {
 
     *this = Mesh::Sphere(center, radius);
   } else if (mesh_type == "obj") {
-    Mesh::LoadObjFile(
-        element->FirstChildElement("filename")->FindAttribute("value")->Value(),
-        *this);
+    this->LoadObjFile(
+        element->FirstChildElement("filename")->FindAttribute("value")->Value());
   } else {
     std::vector<Vertex> vertices{};
     std::vector<uint32_t> indices{};

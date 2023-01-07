@@ -287,7 +287,7 @@ int Scene::LoadTexture(const std::string &file_path) {
 
 int Scene::LoadObjMesh(const std::string &file_path) {
   std::shared_ptr<AcceleratedMesh> mesh = std::make_shared<AcceleratedMesh>();
-  if (Mesh::LoadObjFile(file_path, mesh)) {
+  if (mesh->LoadObjFile(file_path)) {
     mesh->BuildAccelerationStructure();
     return AddEntity(mesh, Material{}, glm::mat4{1.0f},
                      PathToFilename(file_path));
@@ -355,11 +355,12 @@ Scene::Scene(const std::string &filename) : Scene() {
       glm::mat4 transformation = XmlComposeTransformMatrix(child_element);
 
       auto name_attribute = child_element->FindAttribute("name");
+      std::shared_ptr<AcceleratedMesh> m = std::make_shared<AcceleratedMesh>(mesh);
       if (name_attribute) {
-        AddEntity(AcceleratedMesh(mesh), material, transformation,
+        AddEntity(m, material, transformation,
                   std::string(name_attribute->Value()));
       } else {
-        AddEntity(AcceleratedMesh(mesh), material, transformation);
+        AddEntity(m, material, transformation);
       }
     } else {
       LAND_ERROR("Unknown Element Type: {}", child_element->Value());

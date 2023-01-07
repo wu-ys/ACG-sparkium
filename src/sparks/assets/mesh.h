@@ -5,7 +5,7 @@
 #include "vector"
 
 namespace sparks {
-class Mesh : public Model {
+class Mesh : public Model{
  public:
   Mesh() = default;
   Mesh(const Mesh &mesh);
@@ -25,7 +25,7 @@ class Mesh : public Model {
   static Mesh Cube(const glm::vec3 &center, const glm::vec3 &size);
   static Mesh Sphere(const glm::vec3 &center = glm::vec3{0.0f},
                      float radius = 1.0f);
-  static bool LoadObjFile(const std::string &obj_file_path, std::shared_ptr<Mesh> mesh);
+  bool LoadObjFile(const std::string &obj_file_path);
   void WriteObjFile(const std::string &file_path) const;
   void MergeVertices();
 
