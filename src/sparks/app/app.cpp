@@ -11,11 +11,14 @@ namespace sparks {
 
 App::App(Renderer *renderer, const AppSettings &app_settings) {
   renderer_ = renderer;
+  app_settings_ = app_settings;
   vulkan::framework::CoreSettings core_settings;
   core_settings.window_title = "Sparks";
-  core_settings.window_width = app_settings.width;
-  core_settings.window_height = app_settings.height;
-  core_settings.validation_layer = app_settings.validation_layer;
+  core_settings.window_width = app_settings_.width;
+  core_settings.window_height = app_settings_.height;
+  core_settings.validation_layer = app_settings_.validation_layer;
+  core_settings.raytracing_pipeline_required = app_settings_.hardware_renderer;
+  core_settings.selected_device = app_settings.selected_device;
   core_ = std::make_unique<vulkan::framework::Core>(core_settings);
 }
 
@@ -30,8 +33,11 @@ void App::Run() {
 }
 
 void App::OnInit() {
-  LAND_INFO("Starting worker threads.");
-  renderer_->StartWorkerThreads();
+  if (app_settings_.hardware_renderer) {
+  } else {
+    LAND_INFO("Starting worker threads.");
+    renderer_->StartWorkerThreads();
+  }
 
   LAND_INFO("Allocating visual pipeline textures.");
   screen_frame_ = std::make_unique<vulkan::framework::TextureImage>(
@@ -128,6 +134,10 @@ void App::OnInit() {
         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     host_result_render_node_->BuildRenderNode(width, height);
+    if (app_settings_.hardware_renderer) {
+      ray_tracing_render_node_->BuildRenderNode();
+    }
+    reset_accumulation_ = true;
   });
 
   core_->SetDropCallback([this](int path_count, const char **paths) {
@@ -140,6 +150,22 @@ void App::OnInit() {
         renderer_->LoadTexture(path);
       } else if (absl::EndsWith(path, ".obj")) {
         renderer_->LoadObjMesh(path);
+      } else if (absl::EndsWith(path, ".xml")) {
+        renderer_->LoadScene(path);
+        renderer_->ResetAccumulation();
+        num_loaded_device_textures_ = 0;
+        num_loaded_device_assets_ = 0;
+        device_texture_samplers_.clear();
+        entity_device_assets_.clear();
+        selected_entity_id_ = -1;
+        if (app_settings_.hardware_renderer) {
+          reset_accumulation_ = true;
+          top_level_acceleration_structure_.reset();
+          bottom_level_acceleration_structures_.clear();
+          object_info_data_.clear();
+          ray_tracing_vertex_data_.clear();
+          ray_tracing_index_data_.clear();
+        }
       }
     }
   });
@@ -175,6 +201,7 @@ void App::OnInit() {
       core_->GetDevice(), VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
   nearest_sampler_ = std::make_unique<vulkan::Sampler>(
       core_->GetDevice(), VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+
   ImGuizmo::Enable(true);
   LAND_INFO("Updating device assets.");
   UpdateDeviceAssets();
@@ -210,8 +237,18 @@ void App::OnUpdate(uint32_t ms) {
     UploadAccumulationResult();
   }
   if (reset_accumulation_) {
-    renderer_->ResetAccumulation();
-    reset_accumulation_ = false;
+    core_->GetDevice()->WaitIdle();
+    if (!app_settings_.hardware_renderer) {
+      renderer_->ResetAccumulation();
+      reset_accumulation_ = false;
+    }
+  }
+  if (app_settings_.hardware_renderer) {
+    UpdateTopLevelAccelerationStructure();
+  }
+  if (rebuild_ray_tracing_pipeline_) {
+    BuildRayTracingPipeline();
+    rebuild_ray_tracing_pipeline_ = false;
   }
 }
 
@@ -233,6 +270,10 @@ void App::OnRender() {
                              entity_asset.index_buffer->Size(), i);
   }
   render_node_->EndDraw();
+  if (app_settings_.hardware_renderer) {
+    ray_tracing_render_node_->Draw();
+    accumulated_sample_ += renderer_->GetRendererSettings().num_samples;
+  }
   if (output_render_result_) {
     host_result_render_node_->Draw(envmap_vertex_buffer_.get(),
                                    envmap_index_buffer_.get(),
@@ -274,6 +315,13 @@ void App::OnRender() {
   core_->TemporalSubmit();
   core_->ImGuiRender();
   core_->Output(screen_frame_.get());
+
+  if (app_settings_.hardware_renderer && reset_accumulation_) {
+    accumulation_number_->ClearColor({0.0f, 0.0f, 0.0f, 0.0f});
+    accumulation_color_->ClearColor({0.0f, 0.0f, 0.0f, 0.0f});
+    reset_accumulation_ = false;
+    accumulated_sample_ = 0;
+  }
   core_->EndCommandRecordAndSubmit();
 }
 
@@ -284,7 +332,10 @@ void App::OnClose() {
   global_uniform_buffer_.reset();
   entity_uniform_buffer_.reset();
   screen_frame_.reset();
-  renderer_->StopWorkers();
+  if (app_settings_.hardware_renderer) {
+  } else {
+    renderer_->StopWorkers();
+  }
 }
 
 void App::UpdateImGui() {
@@ -320,19 +371,28 @@ void App::UpdateImGui() {
     if (ImGui::RadioButton("Renderer", output_render_result_)) {
       output_render_result_ = true;
     }
-    ImGui::SameLine();
-    if (renderer_->IsPaused()) {
-      if (ImGui::Button("Resume")) {
-        renderer_->ResumeWorkers();
-      }
+
+    if (app_settings_.hardware_renderer) {
     } else {
-      if (ImGui::Button("Pause")) {
-        renderer_->PauseWorkers();
+      ImGui::SameLine();
+      if (renderer_->IsPaused()) {
+        if (ImGui::Button("Resume")) {
+          renderer_->ResumeWorkers();
+        }
+      } else {
+        if (ImGui::Button("Pause")) {
+          renderer_->PauseWorkers();
+        }
       }
     }
 
-    reset_accumulation_ |= ImGui::SliderInt(
-        "Samples", &renderer_->GetRendererSettings().samples, 1, 16);
+    if (app_settings_.hardware_renderer) {
+      reset_accumulation_ |= ImGui::SliderInt(
+          "Samples", &renderer_->GetRendererSettings().num_samples, 1, 128);
+    } else {
+      reset_accumulation_ |= ImGui::SliderInt(
+          "Samples", &renderer_->GetRendererSettings().num_samples, 1, 16);
+    }
     reset_accumulation_ |= ImGui::SliderInt(
         "Bounces", &renderer_->GetRendererSettings().num_bounces, 1, 128);
 
@@ -376,6 +436,14 @@ void App::UpdateImGui() {
           ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_Float);
       reset_accumulation_ |=
           scene.TextureCombo("Albedo Texture", &material.albedo_texture_id);
+      reset_accumulation_ |= ImGui::ColorEdit3(
+          "Emission", &material.emission[0],
+          ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_Float);
+      reset_accumulation_ |=
+          ImGui::SliderFloat("Emission Strength", &material.emission_strength,
+                             0.0f, 1e5f, "%.3f", ImGuiSliderFlags_Logarithmic);
+      reset_accumulation_ |=
+          ImGui::SliderFloat("Alpha", &material.alpha, 0.0f, 1.0f, "%.3f");
     }
 
 #if !defined(NDEBUG)
@@ -427,18 +495,26 @@ void App::UpdateImGui() {
     ImGui::Text("Statistics (%dx%d)", core_->GetFramebufferWidth(),
                 core_->GetFramebufferHeight());
     ImGui::Separator();
-    auto current_sample = renderer_->GetAccumulatedSamples();
+    uint32_t current_sample;
+    if (app_settings_.hardware_renderer) {
+      current_sample = accumulated_sample_;
+    } else {
+      current_sample = renderer_->GetAccumulatedSamples();
+    }
     auto current_time = std::chrono::steady_clock::now();
     static auto last_sample = current_sample;
     static auto last_sample_time = current_time;
     static float sample_rate = 0.0f;
+    float duration_us = 0;
     if (last_sample != current_sample) {
       if (last_sample < current_sample) {
         auto duration_ms =
             (current_time - last_sample_time) / std::chrono::milliseconds(1);
+        duration_us = float((current_time - last_sample_time) /
+                            std::chrono::microseconds(1));
         sample_rate = (float(core_->GetFramebufferWidth()) *
                        float(core_->GetFramebufferHeight()) *
-                       float(renderer_->GetRendererSettings().samples)) /
+                       float(renderer_->GetRendererSettings().num_samples)) /
                       (0.001f * float(duration_ms));
       } else {
         sample_rate = NAN;
@@ -460,6 +536,10 @@ void App::UpdateImGui() {
     ImGui::Text("Accumulated Samples: %d", current_sample);
     ImGui::Text("R:%f G:%f B:%f", hovering_pixel_color_.x,
                 hovering_pixel_color_.y, hovering_pixel_color_.z);
+    if (app_settings_.hardware_renderer) {
+      ImGui::Text("Frame Duration: %.3lf ms", duration_us * 0.001f);
+      ImGui::Text("Fps: %.2lf", 1.0f / (duration_us * 1e-6f));
+    }
     ImGui::End();
   }
 
@@ -486,6 +566,9 @@ void App::UpdateDynamicBuffer() {
   guo.envmap_light_direction = renderer_->GetScene().GetEnvmapLightDirection();
   guo.envmap_minor_color = renderer_->GetScene().GetEnvmapMinorColor();
   guo.envmap_major_color = renderer_->GetScene().GetEnvmapMajorColor();
+  guo.accumulated_sample = accumulated_sample_;
+  guo.num_samples = renderer_->GetRendererSettings().num_samples;
+  guo.num_bounces = renderer_->GetRendererSettings().num_bounces;
   global_uniform_buffer_->operator[](0) = guo;
   auto &entities = renderer_->GetScene().GetEntities();
   for (int i = 0; i < entities.size(); i++) {
@@ -521,6 +604,7 @@ void App::UpdateHostStencilBuffer() {
 
 void App::UpdateDeviceAssets() {
   auto &entities = renderer_->GetScene().GetEntities();
+  bool rebuild_rt_assets = false;
   for (int i = num_loaded_device_assets_; i < entities.size(); i++) {
     auto &entity = entities[i];
     auto vertices = entity.GetModel()->GetVertices();
@@ -533,8 +617,51 @@ void App::UpdateDeviceAssets() {
     device_asset.vertex_buffer->Upload(vertices.data());
     device_asset.index_buffer->Upload(indices.data());
     entity_device_assets_.push_back(std::move(device_asset));
+
+    if (app_settings_.hardware_renderer) {
+      rebuild_rt_assets = true;
+      bottom_level_acceleration_structures_.push_back(
+          std::make_unique<
+              vulkan::raytracing::BottomLevelAccelerationStructure>(
+              core_->GetDevice(), core_->GetCommandPool(), vertices, indices));
+      object_info_data_.push_back({uint32_t(ray_tracing_vertex_data_.size()),
+                                   uint32_t(ray_tracing_index_data_.size())});
+      ray_tracing_vertex_data_.insert(ray_tracing_vertex_data_.end(),
+                                      vertices.begin(), vertices.end());
+      ray_tracing_index_data_.insert(ray_tracing_index_data_.end(),
+                                     indices.begin(), indices.end());
+    }
   }
   num_loaded_device_assets_ = int(entities.size());
+
+  if (rebuild_rt_assets) {
+    std::vector<std::pair<
+        vulkan::raytracing::BottomLevelAccelerationStructure *, glm::mat4>>
+        object_instances;
+    for (int i = 0; i < entities.size(); i++) {
+      auto &entity = entities[i];
+      object_instances.emplace_back(
+          bottom_level_acceleration_structures_[i].get(),
+          entity.GetTransformMatrix());
+    }
+    top_level_acceleration_structure_ =
+        std::make_unique<vulkan::raytracing::TopLevelAccelerationStructure>(
+            core_->GetDevice(), core_->GetCommandPool(), object_instances);
+    ray_tracing_vertex_buffer_ =
+        std::make_unique<vulkan::framework::StaticBuffer<Vertex>>(
+            core_.get(), ray_tracing_vertex_data_.size());
+    ray_tracing_vertex_buffer_->Upload(ray_tracing_vertex_data_.data());
+    ray_tracing_index_buffer_ =
+        std::make_unique<vulkan::framework::StaticBuffer<uint32_t>>(
+            core_.get(), ray_tracing_index_data_.size());
+    ray_tracing_index_buffer_->Upload(ray_tracing_index_data_.data());
+    object_info_buffer_ =
+        std::make_unique<vulkan::framework::StaticBuffer<ObjectInfo>>(
+            core_.get(), object_info_data_.size());
+    object_info_buffer_->Upload(object_info_data_.data());
+
+    rebuild_ray_tracing_pipeline_ = true;
+  }
 
   auto &textures = renderer_->GetScene().GetTextures();
   if (num_loaded_device_textures_ != textures.size()) {
@@ -667,7 +794,10 @@ void App::RebuildRenderNode() {
   host_result_render_node_->VertexInput({VK_FORMAT_R32G32_SFLOAT});
   host_result_render_node_->BuildRenderNode(core_->GetFramebufferWidth(),
                                             core_->GetFramebufferHeight());
+
+  BuildRayTracingPipeline();
 }
+
 bool App::UpdateImGuizmo() {
   bool value_changed = false;
   ImGui::Text("Gizmo");
@@ -807,15 +937,74 @@ void App::UpdateCamera() {
 }
 
 void App::UploadAccumulationResult() {
-  renderer_->RetrieveAccumulationResult(
-      reinterpret_cast<glm::vec4 *>(host_accumulation_color_->Map()),
-      reinterpret_cast<float *>(host_accumulation_number_->Map()));
-  host_accumulation_number_->Unmap();
-  host_accumulation_color_->Unmap();
-  vulkan::UploadImage(core_->GetCommandPool(), accumulation_color_->GetImage(),
-                      host_accumulation_color_.get());
-  vulkan::UploadImage(core_->GetCommandPool(), accumulation_number_->GetImage(),
-                      host_accumulation_number_.get());
+  if (app_settings_.hardware_renderer) {
+  } else {
+    renderer_->RetrieveAccumulationResult(
+        reinterpret_cast<glm::vec4 *>(host_accumulation_color_->Map()),
+        reinterpret_cast<float *>(host_accumulation_number_->Map()));
+    host_accumulation_number_->Unmap();
+    host_accumulation_color_->Unmap();
+    vulkan::UploadImage(core_->GetCommandPool(),
+                        accumulation_color_->GetImage(),
+                        host_accumulation_color_.get());
+    vulkan::UploadImage(core_->GetCommandPool(),
+                        accumulation_number_->GetImage(),
+                        host_accumulation_number_.get());
+  }
+}
+
+void App::UpdateTopLevelAccelerationStructure() {
+  std::vector<std::pair<vulkan::raytracing::BottomLevelAccelerationStructure *,
+                        glm::mat4>>
+      object_instances;
+  auto &entities = renderer_->GetScene().GetEntities();
+  for (int i = 0; i < entities.size(); i++) {
+    auto &entity = entities[i];
+    object_instances.emplace_back(
+        bottom_level_acceleration_structures_[i].get(),
+        entity.GetTransformMatrix());
+  }
+  top_level_acceleration_structure_->UpdateAccelerationStructure(
+      core_->GetCommandPool(), object_instances);
+}
+
+void App::BuildRayTracingPipeline() {
+  if (!app_settings_.hardware_renderer) {
+    return;
+  }
+
+  std::vector<std::pair<vulkan::framework::TextureImage *, vulkan::Sampler *>>
+      binding_texture_samplers_;
+  for (auto &device_texture_sampler : device_texture_samplers_) {
+    binding_texture_samplers_.emplace_back(device_texture_sampler.first.get(),
+                                           device_texture_sampler.second.get());
+  }
+  ray_tracing_render_node_ =
+      std::make_unique<vulkan::framework::RayTracingRenderNode>(core_.get());
+  ray_tracing_render_node_->AddUniformBinding(
+      top_level_acceleration_structure_.get(), VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  ray_tracing_render_node_->AddUniformBinding(accumulation_color_.get(),
+                                              VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  ray_tracing_render_node_->AddUniformBinding(accumulation_number_.get(),
+                                              VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  ray_tracing_render_node_->AddUniformBinding(global_uniform_buffer_.get(),
+                                              VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  ray_tracing_render_node_->AddBufferBinding(entity_uniform_buffer_.get(),
+                                             VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  ray_tracing_render_node_->AddBufferBinding(material_uniform_buffer_.get(),
+                                             VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  ray_tracing_render_node_->AddBufferBinding(object_info_buffer_.get(),
+                                             VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  ray_tracing_render_node_->AddBufferBinding(ray_tracing_vertex_buffer_.get(),
+                                             VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  ray_tracing_render_node_->AddBufferBinding(ray_tracing_index_buffer_.get(),
+                                             VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  ray_tracing_render_node_->AddUniformBinding(binding_texture_samplers_,
+                                              VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  ray_tracing_render_node_->SetShaders("../../shaders/path_tracing.rgen.spv",
+                                       "../../shaders/path_tracing.rmiss.spv",
+                                       "../../shaders/path_tracing.rchit.spv");
+  ray_tracing_render_node_->BuildRenderNode();
 }
 
 }  // namespace sparks
