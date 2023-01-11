@@ -97,38 +97,6 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
       vec3 median = -dot(direction, hit_record.normal) * hit_record.normal;
       vec3 out_direction = 2*median + direction;
       direction = out_direction;
-    } else if (material.material_type == MATERIAL_TYPE_TRANSMISSIVE){
-      // Transmissive
-
-      // cosine importance sampling
-      float theta, phi, rand1, rand2;
-      rand1 = fract(RandomFloat());
-      rand2 = fract(RandomFloat());
-
-      theta = acos(sqrt(1-rand1));
-      phi = 2*PI*rand2;
-
-      vec3 out_direction;
-
-      vec3 local_z = normalize(hit_record.normal);
-      if (dot(direction, hit_record.normal) > 0)
-        hit_record.normal = -hit_record.normal;
-      vec3 local_x = normalize(direction - dot(direction, local_z) * local_z);
-      vec3 local_y = cross(local_z,local_x);
-
-      out_direction = normalize(sin(theta)*cos(phi)*local_x + sin(theta)*sin(phi)*local_y + cos(theta)*local_z);
-
-      // vec3 brdf = material.BRDF(hit_record, direction, out_direction);
-      vec3 brdf = bsdf(material, direction, out_direction, hit_record.normal);
-
-      // float cosine = dot(out_direction, normalize(hit_record.normal));
-
-      throughput *= (brdf * vec3(texture(texture_samplers[material.albedo_texture_id],hit_record.tex_coord)) * PI);
-
-      origin = hit_record.position;
-      direction = out_direction;    
-    
-    
     } else if (material.material_type == MATERIAL_TYPE_LAMBERTIAN) {      
       // Lambertian
       if (dot(direction, hit_record.normal) > 0)
@@ -159,8 +127,40 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
 
       origin = hit_record.position;
       direction = out_direction;
+    } else if (material.material_type == MATERIAL_TYPE_TRANSMISSIVE) {
+      // Transmissive
+      origin = hit_record.position;
+
+      vec3 median = -dot(direction, hit_record.normal) * hit_record.normal;
+      vec3 out_ref_direction = 2*median + direction;
+      vec3 proj_x = normalize(direction + median);
+      vec3 proj_y = hit_record.normal; 
+
+      float cos_theta = dot(hit_record.normal, direction);
+      float sin_theta = sqrt(1-cos_theta*cos_theta);
+      float sin_phi, cos_phi;
+      if (cos_theta < 0) {
+        sin_phi = sin_theta * transmissive_ratio;
+        proj_y = -proj_y;
+      } else {
+        sin_phi = sin_theta / transmissive_ratio;
+        if (sin_phi >= 1) {
+          direction = out_ref_direction;
+          break;
+        }
+      }
+      cos_phi = sqrt(1-sin_phi);
+
+      vec3 out_trans_direction = sin_phi * proj_y + cos_phi * proj_x;
+
+      if (fract(RandomFloat()) > fresnel) {
+        direction = out_ref_direction;
+      } else {
+        direction = out_trans_direction; 
+      }
+
     } else {
-      // PRINCIPLED, or other self-defined brdf
+      // PRINCIPLED or other self-defined brdf
       if (dot(direction, hit_record.normal) > 0)
         hit_record.normal = -hit_record.normal;
 
@@ -221,7 +221,7 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
   //     }
   //   }
   // }
-  return radiance;
+  return min(vec3(100.0), radiance);
 }
 
 void main() {
