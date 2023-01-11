@@ -62,4 +62,23 @@ Material::Material(Scene *scene, const tinyxml2::XMLElement *material_element)
 Material::Material(const glm::vec3 &albedo) : Material() {
   albedo_color = albedo;
 }
+
+glm::vec3 Material::BRDF(const HitRecord& hit_record, 
+                         const glm::vec3 in_direction, 
+                         const glm::vec3 out_direction) const {
+  switch (this->material_type) {
+    case MATERIAL_TYPE_LAMBERTIAN: {
+      return albedo_color / PI;
+      break;
+    }
+    case MATERIAL_TYPE_SPECULAR: {
+      
+    } 
+      
+    
+    default:
+      return albedo_color;
+      break;
+  }
+}
 }  // namespace sparks

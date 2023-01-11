@@ -2,6 +2,8 @@
 #include "cstdint"
 #include "glm/glm.hpp"
 #include "sparks/assets/util.h"
+#include "sparks/assets/texture.h"
+#include "sparks/assets/hit_record.h"
 
 namespace sparks {
 
@@ -26,5 +28,9 @@ struct Material {
   Material() = default;
   explicit Material(const glm::vec3 &albedo);
   Material(Scene *scene, const tinyxml2::XMLElement *material_element);
+
+  glm::vec3 BRDF(const HitRecord& hit_record,
+                 const glm::vec3 in_direction,
+                 const glm::vec3 out_direction) const;
 };
 }  // namespace sparks

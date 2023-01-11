@@ -162,7 +162,7 @@ std::vector<uint32_t> Mesh::GetIndices() const {
   return indices_;
 }
 
-bool Mesh::LoadObjFile(const std::string &obj_file_path, Mesh &mesh) {
+bool Mesh::LoadObjFile(const std::string &obj_file_path) {
   tinyobj::ObjReaderConfig reader_config;
   reader_config.mtl_search_path = "./";  // Path to material files
 
@@ -258,8 +258,9 @@ bool Mesh::LoadObjFile(const std::string &obj_file_path, Mesh &mesh) {
       index_offset += fv;
     }
   }
-  mesh = Mesh(vertices, indices);
-  mesh.MergeVertices();
+  vertices_ = vertices;
+  indices_ = indices;
+  MergeVertices();
   return true;
 }
 
@@ -267,6 +268,10 @@ void Mesh::MergeVertices() {
   std::vector<Vertex> vertices;
   std::vector<uint32_t> indices;
   std::unordered_map<Vertex, uint32_t, VertexHash> vertex_index_map;
+  
+  // index_func: 
+  //    inputs a Vertex, and return its index (uint32_t)
+  //    if the Vertex is not in Mesh.vertices, it will be inserted
   auto index_func = [&vertices, &vertex_index_map](const Vertex &v) {
     if (vertex_index_map.count(v)) {
       return vertex_index_map.at(v);
@@ -310,9 +315,8 @@ Mesh::Mesh(const tinyxml2::XMLElement *element) {
 
     *this = Mesh::Sphere(center, radius);
   } else if (mesh_type == "obj") {
-    Mesh::LoadObjFile(
-        element->FirstChildElement("filename")->FindAttribute("value")->Value(),
-        *this);
+    this->LoadObjFile(
+        element->FirstChildElement("filename")->FindAttribute("value")->Value());
   } else {
     std::vector<Vertex> vertices{};
     std::vector<uint32_t> indices{};

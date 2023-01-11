@@ -8,21 +8,21 @@ namespace sparks {
 class Entity {
  public:
   template <class ModelType>
-  Entity(const ModelType &model,
+  Entity(const std::shared_ptr<ModelType> model,
          const Material &material,
          const glm::mat4 &transform = glm::mat4{1.0f}) {
-    model_ = std::make_unique<ModelType>(model);
+    model_ = model;
     material_ = material;
     transform_ = transform;
     name_ = model_->GetDefaultEntityName();
   }
 
   template <class ModelType>
-  Entity(const ModelType &model,
+  Entity(const std::shared_ptr<ModelType> model,
          const Material &material,
          const glm::mat4 &transform,
          const std::string &name) {
-    model_ = std::make_unique<ModelType>(model);
+    model_ = model;
     material_ = material;
     transform_ = transform;
     name_ = name;
@@ -35,7 +35,7 @@ class Entity {
   [[nodiscard]] const std::string &GetName() const;
 
  private:
-  std::unique_ptr<Model> model_;
+  std::shared_ptr<Model> model_;
   Material material_{};
   glm::mat4 transform_{1.0f};
   std::string name_;

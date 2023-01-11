@@ -16,20 +16,19 @@ Dec 26 — Jan 8
 ### Grading
 
 Total score: 55 points
+
 - Base: a path tracing algorithm that could handle diffusive material and specular material correctly
 with a proper acceleration structure (in total 30 pts)
   - We will provide several standard test cases (~3) to verify the correctness of your algorithm
 - Additional features (choose your own but the maximum score won’t exceed 55 pts):
-  - Build your own scene: with aesthetics consideration, with geometry you make from scratch and/or
-find online with the source highlighted (up to 8 pts)
+  - Build your own scene: with aesthetics consideration, with geometry you make from scratch and/or find online with the source highlighted (up to 8 pts)
   - Material: create a (non-trivial) customized material (up to 5 pts)
   - Texture: create your own (non-trivial) texture with the proper texture mapping (up to 5 pts)
-  -  Anti-aliasing: implement an anti-aliasing algorithm (up to 2 pts)
+  - Anti-aliasing: implement an anti-aliasing algorithm (up to 2 pts)
   - Importance sampling: using better sampling algorithms for path tracing (up to 5 pts)
   - Simulation based content creation (up to 5 pts)
   - Special material rendering: participating media, hair, translucent material, etc. (up to 5 pts for each)
   - Special visual effect: motion blur, depth of field, etc. (up to 3 pts for each)
-
 
 ## Build The Project
 
@@ -41,13 +40,13 @@ You need to **fork** this repo, and do changes on your forked repo!
 
 Clone the repo (With submodules recursively):
 
-```
+```shell
 git clone link-to-your-repo.git --recursive
 ```
 
 or
 
-```
+```shell
 git clone link-to-your-repo.git
 cd sparkium
 git submodule update --init --recursive
