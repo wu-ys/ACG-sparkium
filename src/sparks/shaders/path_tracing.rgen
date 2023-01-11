@@ -51,6 +51,7 @@ vec3 SampleEnvmap(vec3 direction) {
       .xyz;  // textures_[envmap_id_].Sample(glm::);
 }
 
+
 HitRecord hit_record;
 void TraceRay(vec3 origin, vec3 direction) {
   float tmin = 1e-3;
@@ -96,44 +97,95 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
       vec3 median = -dot(direction, hit_record.normal) * hit_record.normal;
       vec3 out_direction = 2*median + direction;
       direction = out_direction;
-    } else {
-      // Lambertian
+    } else if (material.material_type == MATERIAL_TYPE_TRANSMISSIVE){
+      // Transmissive
 
+      // cosine importance sampling
+      float theta, phi, rand1, rand2;
+      rand1 = fract(RandomFloat());
+      rand2 = fract(RandomFloat());
 
-      if (dot(direction, hit_record.normal) > 0)
-        hit_record.normal = -hit_record.normal;
-
-      // box-muller
-      float rand1, rand2, rand3, rand4;
-
-      do {
-        rand1 = fract(RandomFloat());
-        rand2 = fract(RandomFloat());
-        rand3 = fract(RandomFloat());
-        rand4 = fract(RandomFloat());
-      } while (rand1 == 0 || rand2 == 0 || rand3 == 0 || rand4 == 0);
-
-      float r1 = sqrt(-2 * log(rand1)); 
-      float r2 = sqrt(-2 * log(rand3)); 
-      float theta1 = 2*PI*rand2;
-      float theta2 = 2*PI*rand4;
+      theta = acos(sqrt(1-rand1));
+      phi = 2*PI*rand2;
 
       vec3 out_direction;
-      do {
-        out_direction.x = r1 * cos(theta1);
-        out_direction.y = r1 * sin(theta1);
-        out_direction.z = r2 * cos(theta2);
-      } while (length(out_direction) == 0);      
-      out_direction = normalize(out_direction);
-      if (dot(out_direction, hit_record.normal) < 0) 
-        out_direction = -out_direction;
+
+      vec3 local_z = normalize(hit_record.normal);
+      if (dot(direction, hit_record.normal) > 0)
+        hit_record.normal = -hit_record.normal;
+      vec3 local_x = normalize(direction - dot(direction, local_z) * local_z);
+      vec3 local_y = cross(local_z,local_x);
+
+      out_direction = normalize(sin(theta)*cos(phi)*local_x + sin(theta)*sin(phi)*local_y + cos(theta)*local_z);
 
       // vec3 brdf = material.BRDF(hit_record, direction, out_direction);
       vec3 brdf = bsdf(material, direction, out_direction, hit_record.normal);
 
-      float cosine = dot(out_direction, normalize(hit_record.normal));
+      // float cosine = dot(out_direction, normalize(hit_record.normal));
 
-      throughput *= (brdf * vec3(texture(texture_samplers[material.albedo_texture_id],hit_record.tex_coord)) * cosine * (2*PI)  /*pdf(out_direction)*/  );
+      throughput *= (brdf * vec3(texture(texture_samplers[material.albedo_texture_id],hit_record.tex_coord)) * PI);
+
+      origin = hit_record.position;
+      direction = out_direction;    
+    
+    
+    } else if (material.material_type == MATERIAL_TYPE_LAMBERTIAN) {      
+      // Lambertian
+      if (dot(direction, hit_record.normal) > 0)
+        hit_record.normal = -hit_record.normal;
+
+      // cosine importance sampling
+      float theta, phi, rand1, rand2;
+      rand1 = fract(RandomFloat());
+      rand2 = fract(RandomFloat());
+
+      theta = acos(sqrt(1-rand1));
+      phi = 2*PI*rand2;
+
+      vec3 out_direction;
+
+      vec3 local_z = normalize(hit_record.normal);
+      vec3 local_x = normalize(direction - dot(direction, local_z) * local_z);
+      vec3 local_y = cross(local_z,local_x);
+
+      out_direction = normalize(sin(theta)*cos(phi)*local_x + sin(theta)*sin(phi)*local_y + cos(theta)*local_z);
+
+      // vec3 brdf = material.BRDF(hit_record, direction, out_direction);
+      vec3 brdf = bsdf(material, direction, out_direction, hit_record.normal);
+
+      // float cosine = dot(out_direction, normalize(hit_record.normal));
+
+      throughput *= (brdf * vec3(texture(texture_samplers[material.albedo_texture_id],hit_record.tex_coord)) * PI);
+
+      origin = hit_record.position;
+      direction = out_direction;
+    } else {
+      // PRINCIPLED, or other self-defined brdf
+      if (dot(direction, hit_record.normal) > 0)
+        hit_record.normal = -hit_record.normal;
+
+      // cosine importance sampling
+      float theta, phi, rand1, rand2;
+      rand1 = fract(RandomFloat());
+      rand2 = fract(RandomFloat());
+
+      theta = acos(sqrt(1-rand1));
+      phi = 2*PI*rand2;
+
+      vec3 out_direction;
+
+      vec3 local_z = normalize(hit_record.normal);
+      vec3 local_x = normalize(direction - dot(direction, local_z) * local_z);
+      vec3 local_y = cross(local_z,local_x);
+
+      out_direction = normalize(sin(theta)*cos(phi)*local_x + sin(theta)*sin(phi)*local_y + cos(theta)*local_z);
+
+      // vec3 brdf = material.BRDF(hit_record, direction, out_direction);
+      vec3 brdf = bsdf(material, direction, out_direction, hit_record.normal);
+
+      // float cosine = dot(out_direction, normalize(hit_record.normal));
+
+      throughput *= (brdf * vec3(texture(texture_samplers[material.albedo_texture_id],hit_record.tex_coord)) * PI);
 
       origin = hit_record.position;
       direction = out_direction;
