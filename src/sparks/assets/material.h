@@ -29,8 +29,7 @@ struct Material {
   explicit Material(const glm::vec3 &albedo);
   Material(Scene *scene, const tinyxml2::XMLElement *material_element);
 
-  glm::vec3 BRDF(const Texture& texture,
-                 const HitRecord& hit_record,
+  glm::vec3 BRDF(const HitRecord& hit_record,
                  const glm::vec3 in_direction,
                  const glm::vec3 out_direction) const;
 };

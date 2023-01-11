@@ -63,19 +63,12 @@ Material::Material(const glm::vec3 &albedo) : Material() {
   albedo_color = albedo;
 }
 
-glm::vec3 Material::BRDF(const Texture& texture, 
-                         const HitRecord& hit_record, 
+glm::vec3 Material::BRDF(const HitRecord& hit_record, 
                          const glm::vec3 in_direction, 
                          const glm::vec3 out_direction) const {
-
-  // glm::vec3 texture_sample = glm::vec3{texture.Sample(hit_record.tex_coord)};
-  // std::cout << texture_sample.x << ' ' << texture_sample.y << std::endl;
-
-  glm::vec3 color = albedo_color * glm::vec3{texture.Sample(hit_record.tex_coord)};
-  // std::cout << '(' << color.x << ',' << color.y << ',' << color.z << ")\n";
   switch (this->material_type) {
     case MATERIAL_TYPE_LAMBERTIAN: {
-      return color / PI;
+      return albedo_color / PI;
       break;
     }
     case MATERIAL_TYPE_SPECULAR: {
@@ -84,7 +77,7 @@ glm::vec3 Material::BRDF(const Texture& texture,
       
     
     default:
-      return color;
+      return albedo_color;
       break;
   }
 }

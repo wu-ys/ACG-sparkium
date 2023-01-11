@@ -95,15 +95,10 @@ glm::vec3 PathTracer::SampleRay(glm::vec3 origin,
 
     // std::cout << "Bounces: " << bounces++ << std::endl;
 
-    glm::vec3 brdf = material.BRDF(texture, hit_record, direction, out_direction);
+    glm::vec3 brdf = material.BRDF(hit_record, direction, out_direction);
     float cosine = glm::dot(glm::normalize(out_direction), glm::normalize(hit_record.normal));
-    if (cosine <= 0) {
-      radiance = glm::vec3{1.0f};
-      break;
-    }
-   //  std::cout << cosine << std::endl;
 
-    throughput *= (brdf * cosine / rr_prob * (2*PI)  /*pdf(out_direction)*/  );
+    throughput *= (brdf * glm::vec3(texture.Sample(hit_record.tex_coord)) * cosine / rr_prob * (2*PI)  /*pdf(out_direction)*/  );
     // std::cout << throughput.x << ',' << throughput.y << ',' << throughput.z << std::endl;
 
     origin = hit_record.position;
