@@ -164,17 +164,15 @@ void App::OnInit() {
 
   LAND_INFO("Allocating visual pipeline buffers.");
   global_uniform_buffer_ =
-      std::make_unique<vulkan::framework::DynamicBuffer<GlobalUniformObject>>(
-          core_.get(), 1);
+      std::make_unique<vulkan::framework::DynamicBuffer<GlobalUniformObject>>(core_.get(), 1);
   global_uniform_buffer_far_ =
-      std::make_unique<vulkan::framework::DynamicBuffer<GlobalUniformObject>>(
-          core_.get(), 1);
+      std::make_unique<vulkan::framework::DynamicBuffer<GlobalUniformObject>>(core_.get(), 1);
   entity_uniform_buffer_ =
-      std::make_unique<vulkan::framework::DynamicBuffer<EntityUniformObject>>(
-          core_.get(), 16384);
+      std::make_unique<vulkan::framework::DynamicBuffer<EntityUniformObject>>(core_.get(), 16384);
   material_uniform_buffer_ =
-      std::make_unique<vulkan::framework::DynamicBuffer<Material>>(core_.get(),
-                                                                   16384);
+      std::make_unique<vulkan::framework::DynamicBuffer<Material>>(core_.get(),16384);
+  lightsource_uniform_buffer_ = 
+      std::make_unique<vulkan::framework::DynamicBuffer<uint32_t>>(core_.get(), 16384);
 
   std::vector<glm::vec2> vertices{
       {0.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}};
@@ -664,11 +662,21 @@ void App::UpdateDynamicBuffer() {
           30.0f, 10000.0f);
   global_uniform_buffer_far_->operator[](0) = global_uniform_object;
   auto &entities = renderer_->GetScene().GetEntities();
+  int jk = 1;
+  int num_faces = 0;
   for (int i = 0; i < entities.size(); i++) {
     auto &entity = entities[i];
     entity_uniform_buffer_->operator[](i).model = entity.GetTransformMatrix();
     material_uniform_buffer_->operator[](i) = entity.GetMaterial();
+    if (entity.GetMaterial().material_type == MATERIAL_TYPE_EMISSION) {
+      lightsource_uniform_buffer_->operator[](++jk) = i;
+      int faces = entity.GetModel()->GetIndices().size() / 3;
+      lightsource_uniform_buffer_->operator[](++jk) = faces;
+      num_faces += faces;
+    }
   }
+  lightsource_uniform_buffer_->operator[](0) = jk;
+  lightsource_uniform_buffer_->operator[](1) = num_faces;
 }
 
 void App::UpdateHostStencilBuffer() {
@@ -1126,6 +1134,8 @@ void App::BuildRayTracingPipeline() {
   ray_tracing_render_node_->AddBufferBinding(ray_tracing_vertex_buffer_.get(),
                                              VK_SHADER_STAGE_RAYGEN_BIT_KHR);
   ray_tracing_render_node_->AddBufferBinding(ray_tracing_index_buffer_.get(),
+                                             VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  ray_tracing_render_node_->AddBufferBinding(lightsource_uniform_buffer_.get(),
                                              VK_SHADER_STAGE_RAYGEN_BIT_KHR);
   ray_tracing_render_node_->AddUniformBinding(binding_texture_samplers_,
                                               VK_SHADER_STAGE_RAYGEN_BIT_KHR);

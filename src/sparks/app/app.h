@@ -57,6 +57,8 @@ class App {
       entity_uniform_buffer_;
   std::unique_ptr<vulkan::framework::DynamicBuffer<Material>>
       material_uniform_buffer_;
+  std::unique_ptr<vulkan::framework::DynamicBuffer<uint32_t>>
+      lightsource_uniform_buffer_;
 
   std::unique_ptr<vulkan::framework::RenderNode> host_result_render_node_;
   std::unique_ptr<vulkan::framework::TextureImage> accumulation_color_;

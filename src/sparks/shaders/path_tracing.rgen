@@ -30,7 +30,15 @@ layout(binding = 7) readonly buffer vertex_array {
 layout(binding = 8) readonly buffer index_array {
   uint indices[];
 };
-layout(binding = 9) uniform sampler2D[] texture_samplers;
+layout(binding = 9) readonly buffer light_source_array {
+  int light_sources[];
+  // format 
+  // [0] number of light source objs
+  // [1] number of light source faces
+  // [2k] obj index of light sources (k>=1)
+  // [2k+1] number of faces in the obj
+};
+layout(binding = 10) uniform sampler2D[] texture_samplers;
 
 layout(location = 0) rayPayloadEXT RayPayload ray_payload;
 
@@ -52,7 +60,7 @@ vec3 SampleEnvmap(vec3 direction) {
 }
 
 
-HitRecord hit_record;
+HitRecord hit_record, hit_record0;
 void TraceRay(vec3 origin, vec3 direction) {
   float tmin = 1e-3;
   float tmax = 1e4;
@@ -76,8 +84,7 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
 
   int bounces = 0;
 
-  while (fract(RandomFloat()) <= rr_prob) {
-    throughput /= rr_prob;
+  while (1>0) {
 
     TraceRay(origin, direction);
 
@@ -88,8 +95,82 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
 
     Material material = materials[hit_record.hit_entity_id];
 
+    // sampling the light
+
+    int ls_cnt = int(light_sources[0]);
+    int face_cnt;
+    int obj,face;
+    Vertex node1, node2, node3;
+    vec3 pt;
+    vec3 fraction;
+    if (ls_cnt != 0){
+      obj = int(fract(RandomFloat()) * ls_cnt)+1;
+      face_cnt = int(fract(RandomFloat()) * light_sources[2*obj+1]);
+      obj = light_sources[2*obj];
+
+      face = int(fract(RandomFloat()) * face_cnt);
+
+      ObjectInfo light_obj_info = object_infos[obj];
+
+
+      node1 = GetVertex(light_obj_info.vertex_offset + indices[light_obj_info.index_offset + face * 3 + 0]);
+      node2 = GetVertex(light_obj_info.vertex_offset + indices[light_obj_info.index_offset + face * 3 + 1]);
+      node3 = GetVertex(light_obj_info.vertex_offset + indices[light_obj_info.index_offset + face * 3 + 2]);
+      do {
+      fraction.x = fract(RandomFloat());
+      fraction.y = fract(RandomFloat());
+      fraction.z = fract(RandomFloat());
+      } while (fraction.x + fraction.y + fraction.z == 0);
+
+      fraction /= (fraction.x + fraction.y + fraction.z);
+      
+      // randomly sampled point on the face
+      pt = fraction.x * node1.position + fraction.y * node2.position + fraction.z * node3.position;
+      vec3 normal0 = cross(node2.position-node1.position, node3.position-node1.position);
+      float area = length(normal0);
+      normal0 = normalize(normal0);
+
+      // TraceRay(hit_record.position, normalize(pt-hit_record.position));
+
+      vec3 origin0 = hit_record.position;
+      vec3 direction0 = normalize(pt - hit_record.position);
+      if (dot(direction0, normal0) >0)
+        normal0 = -normal0;
+      float tmin = 1e-3;
+      float tmax = 1e4;
+
+      ray_payload.t = -1.0;
+      ray_payload.barycentric = vec3(0.0);
+      ray_payload.object_id = 0;
+      ray_payload.primitive_id = 0;
+      ray_payload.object_to_world = mat4x3(1.0);
+
+      traceRayEXT(scene, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin0, tmin,
+                  direction0, tmax, 0);
+      hit_record0 = GetHitRecord(ray_payload, origin, direction);
+      Material material0 = materials[hit_record0.hit_entity_id];
+      if (length(hit_record0.position - pt) < 1e-3 && material0.material_type == MATERIAL_TYPE_EMISSION) { 
+        // no obstacle
+        vec3 radiance_dir = material0.emission * material0.emission_strength * INV_PI / 2
+                        * bsdf(material, direction0, direction, hit_record.normal) 
+                        * dot(normalize(hit_record.normal), direction0)
+                        * dot(normal0, -direction0)
+                        / pow(length(hit_record0.position-hit_record.position),2)
+                        * ls_cnt * area * light_sources[1];
+        radiance += throughput * radiance_dir;
+      }
+    }
+
+    if (fract(RandomFloat()) > rr_prob) {
+      break;
+    }
+
+    throughput /= rr_prob;
+
+    // sampling the env
     if (material.material_type == MATERIAL_TYPE_EMISSION) {
-      radiance += throughput * material.emission * material.emission_strength;
+      if (bounces == 0)
+        radiance += throughput * material.emission * material.emission_strength;
       break;
     } else if (material.material_type == MATERIAL_TYPE_SPECULAR) {
       origin = hit_record.position;
@@ -191,7 +272,7 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
       direction = out_direction;
     }
 
-    
+    bounces++;
   }
 
 
@@ -221,7 +302,7 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
   //     }
   //   }
   // }
-  return min(vec3(100.0), radiance);
+  return max(vec3(-10.0),min(vec3(10.0), radiance));
 }
 
 void main() {
