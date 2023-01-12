@@ -10,8 +10,7 @@ struct Material {
   uint material_type;
 };
 
-const float transmissive_ratio = 0.86;
-const float fresnel = 0.8;
+const float transmissive_ratio = 1.6;
 #define MATERIAL_TYPE_EMISSION 0
 #define MATERIAL_TYPE_LAMBERTIAN 1
 #define MATERIAL_TYPE_SPECULAR 2
