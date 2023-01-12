@@ -7,21 +7,22 @@
   - <https://zhuanlan.zhihu.com/p/500811555>
 - cosine importance sampling 1.11
   - <https://zhuanlan.zhihu.com/p/360420413>
-- naive transmissive material 1.11
+- naive transmissive material 1.12
 - directly sampling the light 1.12
   - <https://zhuanlan.zhihu.com/p/475547095>
 
 ## what's left
 
-- self-defined scene
+- self-defined scene 1.14 (8)
 - MLT or BDPT?
   - <https://zhuanlan.zhihu.com/p/475547095>
   - <https://zhuanlan.zhihu.com/p/497375112>
-- principled material in microfacet model 1.12
+- principled/transmissive material in microfacet model 1.12 (5)
   - <https://zhuanlan.zhihu.com/p/459557696>
-- microfacet model importance sampling 1.12
+  - <https://blog.uwa4d.com/archives/1582.html>
+- microfacet model importance sampling 1.12 (5)
   - <https://zhuanlan.zhihu.com/p/360420413>
 - Others
-  - hair and cloth material (simulation?)
-  - participating media?
-  - texture?
+  - hair and cloth material (simulation?) (5)
+  - participating media? (5)
+  - texture? (5)

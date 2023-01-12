@@ -220,16 +220,18 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
       float cos_theta = dot(hit_record.normal, direction);
       float sin_theta = sqrt(1-cos_theta*cos_theta);
       float sin_phi, cos_phi;
-      float eta = transmissive_ratio;
+      float eta = 1.5;
       float fresnel;
 
       if (cos_theta < 0) {
         // from air into material
-        eta = 1 / transmissive_ratio;
+        // eta = material.transmissive_ratio;
         proj_y = -proj_y;
         cos_theta = -cos_theta;
+      } else {
+        eta = 1/eta;
       }
-      sin_phi = sin_theta * eta;
+      sin_phi = sin_theta / eta;
       if (sin_phi > 1) {
         fresnel = 1;
       } else {
