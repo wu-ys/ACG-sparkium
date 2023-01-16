@@ -82,7 +82,7 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
 
   float rr_prob = 0.85;
 
-  int bounces = 0;
+  int diffusive = 0;
 
   while (1>0) {
 
@@ -157,7 +157,7 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
                           * dot(normal0, -direction0)
                           / pow(length(hit_record0.position-hit_record.position),2)
                           * ls_cnt * area * light_sources[1];
-          radiance += throughput * radiance_dir;
+          radiance += throughput * material.albedo_color * radiance_dir;
         }
       }
     }
@@ -170,10 +170,11 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
 
     // sampling the env
     if (material.material_type == MATERIAL_TYPE_EMISSION) {
-      if (bounces == 0)
+      if (diffusive == 0)
         radiance += throughput * material.emission * material.emission_strength;
       break;
     } else if (material.material_type == MATERIAL_TYPE_SPECULAR) {
+      diffusive = 0;
       origin = hit_record.position;
 
       vec3 median = -dot(direction, hit_record.normal) * hit_record.normal;
@@ -181,6 +182,7 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
       direction = out_direction;
     } else if (material.material_type == MATERIAL_TYPE_LAMBERTIAN) {      
       // Lambertian
+      diffusive = 1;
       if (dot(direction, hit_record.normal) > 0)
         hit_record.normal = -hit_record.normal;
 
@@ -211,6 +213,7 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
       direction = out_direction;
     } else if (material.material_type == MATERIAL_TYPE_TRANSMISSIVE) {
       // Transmissive
+      diffusive = 0;
       origin = hit_record.position;
 
       vec3 median = -dot(direction, hit_record.normal) * hit_record.normal;
@@ -249,12 +252,12 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
         direction = 2*median + direction; 
       }
 
-    } else {
-      // PRINCIPLED or other self-defined brdf
-      if (dot(direction, hit_record.normal) > 0)
-        hit_record.normal = -hit_record.normal;
+    } else if (material.material_type == MATERIAL_TYPE_PRINCIPLED) {
+      // PRINCIPLED 
 
       // cosine importance sampling
+      // ???
+      diffusive = 1;
       float theta, phi, rand1, rand2;
       rand1 = fract(RandomFloat());
       rand2 = fract(RandomFloat());
@@ -275,13 +278,65 @@ vec3 SampleRay(vec3 origin, vec3 direction) {
 
       // float cosine = dot(out_direction, normalize(hit_record.normal));
 
-      throughput *= (brdf * vec3(texture(texture_samplers[material.albedo_texture_id],hit_record.tex_coord)) * PI);
+      throughput *= (brdf * vec3(texture(texture_samplers[material.albedo_texture_id],hit_record.tex_coord)) * 2 * PI);
 
       origin = hit_record.position;
       direction = out_direction;
+    } else {
+      // self-defined brdf
+      diffusive = 1;
+      float theta, phi, rand1, rand2;
+      float theta_m, phi_m;
+      rand1 = fract(RandomFloat());
+      rand2 = fract(RandomFloat());
+
+      float eta = material.transmissive_ratio;
+      float alpha = material.alpha;
+
+      // sample the microfacet normal 
+
+      theta_m = atan(alpha * sqrt(rand1 / (1-rand1)));
+      phi_m = 2*PI*rand2;
+
+      vec3 local_z = -sign(dot(direction, hit_record.normal))*normalize(hit_record.normal);
+      vec3 local_x = normalize(direction - dot(direction, local_z) * local_z);
+      vec3 local_y = cross(local_z,local_x);
+      vec3 half_direction = normalize(sin(theta)*cos(phi)*local_x + sin(theta)*sin(phi)*local_y + cos(theta)*local_z);
+
+
+      if (dot(direction, hit_record.normal) > 0) {
+        // from material into air
+        // eta = eta_t / eta_i
+        eta = 1 / eta;
+      }
+
+      float fresnel = Fresnel_term(direction, half_direction, eta);
+
+      vec3 out_direction;
+      if (fract(RandomFloat()) < fresnel) {
+        // reflective
+        out_direction = 2 * dot(-direction, half_direction) * half_direction + direction;
+      } else {
+        // transmissive
+        float c = dot(-direction, half_direction);
+        out_direction = (c/eta - sign(dot(-direction, hit_record.normal)) * sqrt(1 + (c*c-1)/eta)) * half_direction + direction / eta;
+      }
+
+      // vec3 brdf = material.BRDF(hit_record, direction, out_direction);
+      vec3 brdf = bsdf(material, direction, out_direction, hit_record.normal);
+
+      // float cosine = dot(out_direction, normalize(hit_record.normal));
+
+      float weight = dot(-direction, half_direction) / dot(-direction, hit_record.normal) / dot(half_direction, hit_record.normal) * Shadow_term(direction, out_direction, hit_record.normal, half_direction, alpha);
+      if (weight != 0) {
+        throughput *= (material.albedo_color * vec3(texture(texture_samplers[material.albedo_texture_id],hit_record.tex_coord)) * weight);
+      } else {
+        throughput = vec3(0.0f);
+      }
+      origin = hit_record.position;
+      direction = out_direction;        
     }
 
-    bounces++;
   }
 
 

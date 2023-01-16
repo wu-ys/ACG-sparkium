@@ -76,6 +76,8 @@
         "span": "cpp",
         "fstream": "cpp",
         "map": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "bitset": "cpp",
+        "unordered_set": "cpp"
     }
 }

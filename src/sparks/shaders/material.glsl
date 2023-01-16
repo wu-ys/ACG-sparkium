@@ -11,6 +11,50 @@ struct Material {
   uint material_type;
 };
 
+float Fresnel_term(vec3 in_direction, vec3 half_direction, float eta) {
+  float fresnel;
+  float c = abs(dot(in_direction, half_direction));
+  float gsquare = c*c - 1 + eta*eta;
+  if (gsquare > 0) {
+    float g = sqrt(gsquare);
+    fresnel = 0.5 * (g-c) * (g-c) / (g+c) / (g+c) * (1 + (c*g + c*c -1) * (c*g + c*c - 1) / (c*g - c*c + 1) / (c*g - c*c + 1));
+  } else {
+    fresnel = 1;
+  }
+
+  return fresnel;
+}
+
+float Microfacet_pdf_term(vec3 half_direction, vec3 normal_direction, float alpha) {
+  float microfacet_pdf;
+  float cos_theta_mn = dot(half_direction, normal_direction);
+  if (cos_theta_mn > 0)
+    microfacet_pdf = alpha * alpha *INV_PI / pow(cos_theta_mn, 4) / pow((alpha*alpha - 1 + 1 / cos_theta_mn / cos_theta_mn),2); 
+  else 
+    microfacet_pdf = 0;
+  return microfacet_pdf;
+}
+
+float Shadow_term(vec3 in_direction, vec3 out_direction, vec3 normal_direction, vec3 half_direction, float alpha) {
+  float cos_theta_in = dot(-in_direction, normal_direction);
+  float cos_theta_on = dot(out_direction, normal_direction);
+  float cos_theta_im = dot(-in_direction, half_direction);
+  float cos_theta_om = dot(out_direction, half_direction);
+  float g1;
+  if (cos_theta_im * cos_theta_in > 0)
+    g1 = 2 / (1+sqrt(1 + alpha*alpha * (1/cos_theta_in/cos_theta_in - 1)));
+  else 
+    g1 = 0;
+
+  float g2;
+  if (cos_theta_om * cos_theta_on > 0)
+    g2 = 2 / (1+sqrt(1 + alpha*alpha * (1/cos_theta_on/cos_theta_on - 1)));
+  else 
+    g2 = 0;
+  float shadow = g1*g2;
+  return shadow;
+}
+
 #define MATERIAL_TYPE_EMISSION 0
 #define MATERIAL_TYPE_LAMBERTIAN 1
 #define MATERIAL_TYPE_SPECULAR 2
@@ -54,72 +98,61 @@ vec3 bsdf(Material material,
       return vec3(0.0);
     }
     case MATERIAL_TYPE_BTDFTEST: {
-      float fr, ft;
-      float fresnel;
-      float shadow;
+      float fr = 0;
+      float ft = 0;
+      float fresnel, microfacet_pdf, shadow;
 
       vec3 half_direction;
 
-      float c = dot(in_direction, normal_direction);
       float eta = material.transmissive_ratio;
+      float alpha = material.alpha;
 
-      if (c > 0) {
+      // 1. determine the transmissive ratio
+      if (dot(in_direction, normal_direction) > 0) {
         // from material into air
         // eta = eta_t / eta_i
-        eta = 1 / material.transmissive_ratio;
+        eta = 1 / eta;
       }
 
+      // 2. determine transmission or reflection
+      // calculate the half vector direction
+      bool is_reflect;
       if (dot(-in_direction, normal_direction) * dot(out_direction, normal_direction) > 0) {
-        // reflective
+        is_reflect = true;
         half_direction = normalize(-in_direction + out_direction);
-      }
-      else {
-        // transmissive
+        half_direction = sign(dot(half_direction, normal_direction)) * half_direction;      
+      } else {
+        is_reflect = false;
         half_direction = -normalize(-in_direction + eta*out_direction);
+        half_direction = sign(dot(half_direction, normal_direction)) * half_direction;        
       }
 
-      float cos_theta_m = dot(half_direction, normal_direction);
-      float cos_theta_i = dot(-in_direction, normal_direction);
-      float cos_theta_o = dot(out_direction, normal_direction);
-
-      float alpha = material.alpha;
-      
+      // reflective
       // fresnel term
-      c = abs(dot(-in_direction, half_direction));
-      float g = sqrt(c*c - 1 + eta*eta);
-      fresnel = 1/2 * (g-c) * (g-c) / (g+c) / (g+c) * (1 + (c*g + c*c -1) * (c*g + c*c - 1) / (c*g - c*c - 1) / (c*g - c*c - 1));
+      fresnel = Fresnel_term(in_direction, half_direction, eta);
 
       // distribution term
-      float microfacet_pdf;
-      if (cos_theta_m > 0)
-        microfacet_pdf = alpha * alpha *INV_PI / pow(cos_theta_m, 4) / pow((alpha*alpha - 1 + 1 / cos_theta_m / cos_theta_m),2); 
-      else 
-        microfacet_pdf = 0;
+      microfacet_pdf = Microfacet_pdf_term(half_direction, normal_direction, alpha);
       
       // shadow term
-      float g1;
-      if (dot(-in_direction, half_direction) * dot(-in_direction, normal_direction) > 0)
-        g1 = 2 / (1+sqrt(1 + alpha*alpha * (1/cos_theta_i/cos_theta_i - 1)));
-      else 
-        g1 = 0;
+      shadow = Shadow_term(in_direction, out_direction, normal_direction, half_direction, alpha);
 
-      float g2;
-      if (dot(out_direction, half_direction) * dot(out_direction, normal_direction) > 0)
-        g2 = 2 / (1+sqrt(1 + alpha*alpha * (1/cos_theta_o/cos_theta_o - 1)));
-      else 
-        g2 = 0;
-      shadow = g1*g2;
+      if (is_reflect) {
 
-      if (dot(-in_direction, normal_direction) * dot(out_direction, normal_direction) > 0) {
-        // reflective
-        fr = fresnel * shadow * microfacet_pdf / 4 / abs(dot(in_direction, normal_direction)) / abs(dot(out_direction, normal_direction));
-        return vec3(fr);
+      // reflective term
+      fr = fresnel * shadow * microfacet_pdf / 4 / abs(dot(in_direction, normal_direction)) /*/ abs(dot(out_direction, normal_direction))*/;
+      } else {
+        // transmissive term
+        ft = abs(dot(-in_direction, half_direction)) 
+            * abs(dot(out_direction, half_direction)) 
+            / abs(dot(-in_direction, normal_direction)) 
+            /*/ abs(dot(out_direction, normal_direction)) */
+            * eta * eta * (1-fresnel) * shadow * microfacet_pdf 
+            / pow((dot(half_direction, -in_direction) 
+            + eta * dot(half_direction, out_direction)), 2);
       }
-      else {
-        // transmissive
-        ft = abs(dot(-in_direction, half_direction)) * abs(dot(out_direction, half_direction)) / abs(cos_theta_i) / abs(cos_theta_o) * eta * eta * (1-fresnel) * shadow * microfacet_pdf / pow((dot(half_direction, -in_direction) + eta * dot(half_direction, out_direction)), 2);
-        return vec3(ft);
-      }
+
+      return vec3(fr+ft);
     }
     default: {
       return vec3(0.5);

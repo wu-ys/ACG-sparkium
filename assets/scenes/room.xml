@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="utf-8"?>
+<scene>
+    <camera>
+        <transform type="lookat">
+            <eye value="278 273 -800"/>
+            <center value="278 273 0"/>
+            <up value="0.0 1.0 0.0"/>
+        </transform>
+        <fov value="40"/>
+        <speed value="100"/>
+    </camera>
+
+	<envmap type="file" value="../../textures/envmap_clouds_4k.hdr"/>
+
+    <model name="Light">
+        <vertex position="175.0 299.9 325.0"/>
+        <vertex position="225.0 299.9 325.0"/>
+        <vertex position="225.0 299.9 275.0"/>
+        <vertex position="175.0 299.9 275.0"/>
+        <index value="0"/>
+        <index value="3"/>
+        <index value="1"/>
+        <index value="1"/>
+        <index value="3"/>
+        <index value="2"/>
+
+        <material type="emission">
+            <emission value="1.0 1.0 1.0"/>
+            <emission_strength value="30.0"/>
+        </material>
+    </model>
+
+    <!-- <model name="Light">
+        <vertex position="-200.0 900 1150.0"/>
+        <vertex position="-300.0 900 1150"/>
+        <vertex position="-300.0 900 1250"/>
+        <vertex position="-200.0 900 1250"/>
+        <index value="0"/>
+        <index value="3"/>
+        <index value="1"/>
+        <index value="1"/>
+        <index value="3"/>
+        <index value="2"/>
+
+        <material type="emission">
+            <emission value="1.0 1.0 1.0"/>
+            <emission_strength value="100.0"/>
+        </material>
+    </model> -->
+
+	<model type="sphere">
+		<center value="43 130 265"/>
+		<radius value="10"/>
+
+		<transform type="translate" value="0.0 0.0 0.0"/>
+
+		<material type="transmissive">
+			<albedo value="1 1 1"/>
+		</material>
+	</model>
+
+	<model type="sphere">
+		<center value="65 125 278"/>
+		<radius value="5"/>
+
+		<transform type="translate" value="0.0 0.0 0.0"/>
+
+		<material type="transmissive">
+			<albedo value="1 1 1"/>
+		</material>
+	</model>
+
+	<model type="obj">
+		<filename value="../../meshes/right_wall.obj"/>
+
+		<material type="lambertian">
+			<albedo value="0.8 0.8 0.8"/>
+            <albedo_texture value="../../textures/mc_concrete_wall.jpg"/>
+		</material>
+	</model>
+
+	<model type="obj">
+		<filename value="../../meshes/left_wall.obj"/>
+
+		<material type="lambertian">
+			<albedo value="0.8 0.8 0.8"/>
+            <albedo_texture value="../../textures/mc_concrete_wall.jpg"/>
+		</material>
+	</model>
+
+	<model type="obj">
+		<filename value="../../meshes/ceiling.obj"/>
+
+		<material type="lambertian">
+			<albedo value="0.8 0.8 0.8"/>
+            <albedo_texture value="../../textures/mc_concrete_wall.jpg"/>
+		</material>
+	</model>
+
+    <model type="obj">
+		<filename value="../../meshes/back_wall.obj"/>
+
+		<material type="lambertian">
+			<albedo value="0.8 0.8 0.8"/>
+            <albedo_texture value="../../textures/mc_concrete_wall.jpg"/>
+		</material>
+	</model>
+
+    <model type="obj">
+		<filename value="../../meshes/floor.obj"/>
+
+		<material type="lambertian">
+			<albedo value="1 1 1"/>
+            <albedo_texture value="../../textures/mc_wood_floor.jpg"/>
+		</material>
+	</model>
+
+    <model type="obj">
+		<filename value="../../meshes/shelf.obj"/>
+
+		<material type="principled">
+			<albedo value="1 1 1"/>
+            <albedo_texture value="../../textures/mc_shelf.jpg"/>
+		</material>
+	</model>
+
+    <model type="obj">
+		<filename value="../../meshes/bookshelf.obj"/>
+
+		<material type="principled">
+			<albedo value="1 1 1"/>
+            <albedo_texture value="../../textures/mc_bookshelf.jpg"/>
+		</material>
+	</model>
+
+    <model type="obj">
+		<filename value="../../meshes/bed.obj"/>
+
+		<material type="lambertian">
+			<albedo value="1 1 1"/>
+            <albedo_texture value="../../textures/mc_bed.jpg"/>
+		</material>
+	</model>  
+
+    <model type="obj">
+		<filename value="../../meshes/window.obj"/>
+
+		<transform type="translate" value="190.0 180.0 600.0"/>
+		<material type="principled">
+			<albedo value="1 1 0.5"/>
+		</material>
+	</model>    
+
+    <model type="obj">
+		<filename value="../../meshes/window.obj"/>
+
+		<transform type="translate" value="90.0 180.0 600.0"/>
+		<material type="principled">
+			<albedo value="1 1 0.5"/>
+		</material>
+	</model>  
+
+    <model type="obj">
+		<filename value="../../meshes/cloth.obj"/>
+
+		<transform type="translate" value="0 2 0"/>
+		<material type="lambertian">
+            <albedo_texture value="../../textures/bedcloth.jpeg"/>
+			<albedo value="0.1 0.4 0.5"/>
+		</material>
+	</model>  
+
+    <model name="Mirror">
+        <vertex position="399.9 30.0 250.0"/>
+        <vertex position="399.9 230.0 250.0"/>
+        <vertex position="399.9 230.0 350.0"/>
+        <vertex position="399.9 30.0 350.0"/>
+        <index value="0"/>
+        <index value="3"/>
+        <index value="1"/>
+        <index value="1"/>
+        <index value="3"/>
+        <index value="2"/>
+
+        <material type="specular">
+			<albedo value="1 1 1"/>
+        </material>
+    </model>
+
+    <!-- <model type="obj">
+		<filename value="../../meshes/basketball.obj"/>
+
+        <transform type="world">
+            <scale value="0.6 0.6 0.6"/>
+            <translation value="306 200 546"/>
+            <rotation value="0 0 0"/>
+        </transform>
+        
+		<material type="lambertian">
+			<albedo value="1 1 1"/>
+		</material>
+	</model>   -->
+
+    <model type="obj">
+		<filename value="../../meshes/table.obj"/>
+
+        <transform type="world">
+            <scale value="0.1 0.1 0.1"/>
+            <translation value="340 -0 420"/>
+            <rotation value="0 -90 0"/>
+        </transform>
+        
+		<material type="principled">
+			<albedo value="0.6 0.6 0.5"/>
+		</material>
+	</model> 
+
+    <model type="obj">
+		<filename value="../../meshes/chair.obj"/>
+
+        <transform type="world">
+            <scale value="0.1 0.12 0.1"/>
+            <translation value="280 -0 400"/>
+            <rotation value="-0 0 -0"/>
+        </transform>
+        
+		<material type="lambertian">
+			<albedo value="0.6 0.3 0.06"/>
+		</material>
+	</model> 
+
+</scene>
