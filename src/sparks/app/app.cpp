@@ -516,6 +516,8 @@ void App::UpdateImGui() {
                              0.0f, 1e5f, "%.3f", ImGuiSliderFlags_Logarithmic);
       reset_accumulation_ |=
           ImGui::SliderFloat("Alpha", &material.alpha, 0.0f, 1.0f, "%.3f");
+      reset_accumulation_ |=
+          ImGui::SliderFloat("Refraction ratio", &material.tranmissive_ratio, 1.0f, 3.0f, "%.2f"); 
     }
 
 #if !defined(NDEBUG)
